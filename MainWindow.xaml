@@ -1,15 +1,15 @@
 <Window x:Class="FileStitcher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="File Stitcher" Height="720" Width="1100"
-        MinHeight="500" MinWidth="800"
+        Title="File Stitcher" Height="760" Width="1100"
+        MinHeight="540" MinWidth="800"
         Background="#1A1B2E"
         WindowStartupLocation="CenterScreen"
         FontFamily="Segoe UI">
 
     <Window.Resources>
 
-        <!-- ── Colours ─────────────────────────────────────────── -->
+        <!-- ── Colours ──────────────────────────────────────────────── -->
         <SolidColorBrush x:Key="BgMain"      Color="#1A1B2E"/>
         <SolidColorBrush x:Key="BgPanel"     Color="#22223B"/>
         <SolidColorBrush x:Key="BgCard"      Color="#16213E"/>
@@ -25,23 +25,20 @@
         <SolidColorBrush x:Key="Success"     Color="#10B981"/>
         <SolidColorBrush x:Key="Danger"      Color="#EF4444"/>
 
-        <!-- ── Primary Button ────────────────────────────────────── -->
+        <!-- ── Primary Button ─────────────────────────────────────── -->
         <Style x:Key="BtnPrimary" TargetType="Button">
-            <Setter Property="Background"   Value="#7C3AED"/>
-            <Setter Property="Foreground"   Value="White"/>
+            <Setter Property="Background"      Value="#7C3AED"/>
+            <Setter Property="Foreground"      Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor"       Value="Hand"/>
-            <Setter Property="FontSize"     Value="13"/>
-            <Setter Property="FontWeight"   Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="7"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                        <Border x:Name="Root" Background="{TemplateBinding Background}"
+                                CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -60,7 +57,7 @@
             </Setter>
         </Style>
 
-        <!-- ── Secondary Button ──────────────────────────────────── -->
+        <!-- ── Secondary Button ───────────────────────────────────── -->
         <Style x:Key="BtnSecondary" TargetType="Button">
             <Setter Property="Background"      Value="#2D2D4E"/>
             <Setter Property="Foreground"      Value="#CBD5E1"/>
@@ -70,12 +67,9 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                        <Border x:Name="Root" Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -93,7 +87,7 @@
             </Setter>
         </Style>
 
-        <!-- ── Icon Button (X remove) ────────────────────────────── -->
+        <!-- ── Icon Button (small ✕) ─────────────────────────────── -->
         <Style x:Key="BtnIcon" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -106,12 +100,9 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="4"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                        <Border x:Name="Root" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -124,33 +115,50 @@
             </Setter>
         </Style>
 
-        <!-- ── Expand/Collapse toggle for TreeView ───────────────── -->
+        <!-- ── Preset chip (active) ───────────────────────────────── -->
+        <Style x:Key="PresetChipActive" TargetType="Border">
+            <Setter Property="Background"     Value="#7C3AED"/>
+            <Setter Property="CornerRadius"   Value="20"/>
+            <Setter Property="Padding"        Value="12,4"/>
+            <Setter Property="Margin"         Value="0,0,6,0"/>
+            <Setter Property="Cursor"         Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- ── Preset chip (inactive) ────────────────────────────── -->
+        <Style x:Key="PresetChipIdle" TargetType="Border">
+            <Setter Property="Background"     Value="#2D2D4E"/>
+            <Setter Property="CornerRadius"   Value="20"/>
+            <Setter Property="Padding"        Value="12,4"/>
+            <Setter Property="Margin"         Value="0,0,6,0"/>
+            <Setter Property="Cursor"         Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- ── TreeView expand toggle ────────────────────────────── -->
         <Style x:Key="ExpanderToggle" TargetType="ToggleButton">
-            <Setter Property="Focusable"   Value="False"/>
-            <Setter Property="Width"       Value="16"/>
-            <Setter Property="Height"      Value="16"/>
-            <Setter Property="Background"  Value="Transparent"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Width"     Value="16"/>
+            <Setter Property="Height"    Value="16"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Border Background="Transparent" Width="16" Height="16">
                             <Path x:Name="Arrow"
                                   Data="M 3 1 L 3 11 L 11 6 Z"
-                                  Fill="#64748B"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"
-                                  Stretch="Uniform"
+                                  Fill="#64748B" Stretch="Uniform"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
                                   Width="7" Height="9"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Arrow" Property="Data"  Value="M 1 3 L 11 3 L 6 11 Z"/>
-                                <Setter TargetName="Arrow" Property="Fill"  Value="#A78BFA"/>
+                                <Setter TargetName="Arrow" Property="Data"   Value="M 1 3 L 11 3 L 6 11 Z"/>
+                                <Setter TargetName="Arrow" Property="Fill"   Value="#A78BFA"/>
                                 <Setter TargetName="Arrow" Property="Width"  Value="9"/>
                                 <Setter TargetName="Arrow" Property="Height" Value="7"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Arrow" Property="Fill" Value="#A78BFA"/>
+                                <Setter TargetName="Arrow" Property="Fill"   Value="#A78BFA"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -158,22 +166,18 @@
             </Setter>
         </Style>
 
-        <!-- ── TreeViewItem (full dark override) ─────────────────── -->
+        <!-- ── TreeViewItem override ──────────────────────────────── -->
         <Style TargetType="{x:Type TreeViewItem}">
-            <Setter Property="Foreground"   Value="#E2E8F0"/>
-            <Setter Property="Background"   Value="Transparent"/>
-            <Setter Property="IsExpanded"   Value="True"/>
-            <Setter Property="Padding"      Value="2,1"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="IsExpanded" Value="True"/>
+            <Setter Property="Padding"    Value="2,1"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type TreeViewItem}">
                         <StackPanel>
-                            <!-- Node row -->
-                            <Border x:Name="ItemBd"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="5"
-                                    Padding="2,1"
-                                    Margin="1,1">
+                            <Border x:Name="ItemBd" Background="{TemplateBinding Background}"
+                                    CornerRadius="5" Padding="2,1" Margin="1,1">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="16"/>
@@ -183,15 +187,13 @@
                                                   x:Name="Expander"
                                                   Style="{StaticResource ExpanderToggle}"
                                                   IsChecked="{Binding IsExpanded,
-                                                    RelativeSource={RelativeSource TemplatedParent},
-                                                    Mode=TwoWay}"
+                                                      RelativeSource={RelativeSource TemplatedParent},
+                                                      Mode=TwoWay}"
                                                   ClickMode="Press"/>
-                                    <ContentPresenter Grid.Column="1"
-                                                      ContentSource="Header"
+                                    <ContentPresenter Grid.Column="1" ContentSource="Header"
                                                       VerticalAlignment="Center"/>
                                 </Grid>
                             </Border>
-                            <!-- Children -->
                             <ItemsPresenter x:Name="ItemsHost"
                                             Margin="20,0,0,0"
                                             Visibility="Collapsed"/>
@@ -204,12 +206,10 @@
                                 <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ItemBd" Property="Background"
-                                        Value="#2D2D4E"/>
+                                <Setter TargetName="ItemBd" Property="Background" Value="#2D2D4E"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemBd" Property="Background"
-                                        Value="#393970"/>
+                                <Setter TargetName="ItemBd" Property="Background" Value="#393970"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -217,47 +217,38 @@
             </Setter>
         </Style>
 
-        <!-- ── TreeView itself ───────────────────────────────────── -->
+        <!-- Disable TreeView's own border/bg so our panel shows through -->
         <Style TargetType="TreeView">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="4"/>
+            <!-- Let TreeView scroll itself; suppress internal horizontal bar -->
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility"   Value="Auto"/>
         </Style>
 
-        <!-- ── ScrollViewer / Bar ────────────────────────────────── -->
-        <Style TargetType="ScrollViewer">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-
-        <!-- ── CheckBox in tree ──────────────────────────────────── -->
+        <!-- ── Custom CheckBox ────────────────────────────────────── -->
         <Style x:Key="TreeCheckBox" TargetType="CheckBox">
-            <Setter Property="Focusable"     Value="False"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin"        Value="0,0,5,0"/>
+            <Setter Property="Focusable"          Value="False"/>
+            <Setter Property="VerticalAlignment"  Value="Center"/>
+            <Setter Property="Margin"             Value="0,0,5,0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
-                        <Border x:Name="Box"
-                                Width="15" Height="15"
-                                BorderBrush="#5B5B8A"
-                                BorderThickness="1.5"
-                                CornerRadius="3"
-                                Background="#1A1B2E"
+                        <Border x:Name="Box" Width="15" Height="15"
+                                BorderBrush="#5B5B8A" BorderThickness="1.5"
+                                CornerRadius="3" Background="#1A1B2E"
                                 VerticalAlignment="Center">
                             <Grid>
-                                <!-- Checkmark -->
                                 <Path x:Name="Check"
                                       Data="M 2 7 L 6 11 L 13 3"
-                                      Stroke="#A78BFA"
-                                      StrokeThickness="2"
+                                      Stroke="#A78BFA" StrokeThickness="2"
                                       StrokeLineJoin="Round"
                                       StrokeStartLineCap="Round"
                                       StrokeEndLineCap="Round"
                                       Visibility="Collapsed"/>
-                                <!-- Dash (indeterminate) -->
                                 <Rectangle x:Name="Dash"
-                                           Width="8" Height="2"
-                                           Fill="#A78BFA"
+                                           Width="8" Height="2" Fill="#A78BFA"
                                            Visibility="Collapsed"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
@@ -266,12 +257,12 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
-                                <Setter TargetName="Box"   Property="Background" Value="#3D1D8A"/>
+                                <Setter TargetName="Box"   Property="Background"  Value="#3D1D8A"/>
                                 <Setter TargetName="Box"   Property="BorderBrush" Value="#7C3AED"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="{x:Null}">
-                                <Setter TargetName="Dash"  Property="Visibility" Value="Visible"/>
-                                <Setter TargetName="Box"   Property="Background" Value="#2D1570"/>
+                                <Setter TargetName="Dash"  Property="Visibility"  Value="Visible"/>
+                                <Setter TargetName="Box"   Property="Background"  Value="#2D1570"/>
                                 <Setter TargetName="Box"   Property="BorderBrush" Value="#7C3AED"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -285,18 +276,22 @@
 
     </Window.Resources>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!--  ROOT GRID                                                  -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>   <!-- Header        -->
-            <RowDefinition Height="Auto"/>   <!-- Root-folder   -->
-            <RowDefinition Height="*"/>      <!-- Panels        -->
-            <RowDefinition Height="Auto"/>   <!-- Footer        -->
+            <RowDefinition Height="Auto"/>
+            <!-- Header         -->
+            <RowDefinition Height="Auto"/>
+            <!-- Preset bar     -->
+            <RowDefinition Height="Auto"/>
+            <!-- Root-folder    -->
+            <RowDefinition Height="*"/>
+            <!-- Panels         -->
+            <RowDefinition Height="Auto"/>
+            <!-- Footer         -->
         </Grid.RowDefinitions>
 
-        <!-- ── HEADER ─────────────────────────────────────────── -->
+        <!-- ── HEADER ──────────────────────────────────────────────── -->
         <Border Grid.Row="0" Background="#12122A" Padding="20,14">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="✂" FontSize="22" Foreground="#7C3AED"
@@ -304,13 +299,59 @@
                 <TextBlock Text="File Stitcher" FontSize="20" FontWeight="Bold"
                            Foreground="#E2E8F0" VerticalAlignment="Center"/>
                 <TextBlock Text="   merge .cs · .json · .txt into one file"
-                           FontSize="12" Foreground="#475569"
-                           VerticalAlignment="Center"/>
+                           FontSize="12" Foreground="#475569" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
 
-        <!-- ── ROOT FOLDER BAR ────────────────────────────────── -->
-        <Border Grid.Row="1" Background="#12122A" Padding="20,10"
+        <!-- ── PRESET BAR ───────────────────────────────────────────── -->
+        <Border Grid.Row="1" Background="#0F0F22" Padding="16,8"
+                BorderBrush="#2D2D4E" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- "Presets:" label -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Chips scroll     -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Action buttons   -->
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="Presets:"
+                           Foreground="#475569" FontSize="12"
+                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+
+                <!-- Horizontally scrollable chips area -->
+                <ScrollViewer Grid.Column="1"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Hidden"
+                              VerticalAlignment="Center">
+                    <StackPanel x:Name="PresetChipsPanel"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,2"/>
+                </ScrollViewer>
+
+                <!-- Buttons right side -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="10,0,0,0">
+                    <Button Content="💾  Save Preset"
+                            Style="{StaticResource BtnSecondary}"
+                            Padding="10,5" Margin="0,0,6,0"
+                            x:Name="BtnSavePreset"
+                            IsEnabled="False"
+                            ToolTip="Save current folder + selection as a named preset"
+                            Click="BtnSavePreset_Click"/>
+                    <Button Content="+ New"
+                            Style="{StaticResource BtnSecondary}"
+                            Padding="10,5"
+                            ToolTip="Browse a new folder and save as preset"
+                            Click="BtnNewPreset_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ── ROOT FOLDER BAR ──────────────────────────────────────── -->
+        <Border Grid.Row="2" Background="#12122A" Padding="20,10"
                 BorderBrush="#2D2D4E" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -327,7 +368,7 @@
                         Padding="12,5" Margin="0,0,8,0"
                         BorderBrush="#2D2D4E" BorderThickness="1">
                     <TextBlock x:Name="TxtRootPath"
-                               Text="No folder selected — click Browse to start"
+                               Text="No folder selected"
                                Foreground="#475569" FontSize="12"
                                TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center"
@@ -347,15 +388,15 @@
             </Grid>
         </Border>
 
-        <!-- ── MAIN PANELS ────────────────────────────────────── -->
-        <Grid Grid.Row="2" Margin="14,12,14,8">
+        <!-- ── MAIN PANELS ──────────────────────────────────────────── -->
+        <Grid Grid.Row="3" Margin="14,12,14,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="220"/>
                 <ColumnDefinition Width="6"/>
                 <ColumnDefinition Width="*" MinWidth="220"/>
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT: File Browser -->
+            <!-- LEFT: File Browser ─────────────────────────────────── -->
             <Border Grid.Column="0" Background="#22223B" CornerRadius="10"
                     BorderBrush="#2D2D4E" BorderThickness="1">
                 <Grid>
@@ -382,8 +423,8 @@
                             </StackPanel>
                             <Button Grid.Column="1" Content="Select All"
                                     Style="{StaticResource BtnSecondary}"
-                                    Padding="8,4" FontSize="11" Margin="0,0,5,0"
-                                    Click="BtnSelectAll_Click"/>
+                                    Padding="8,4" FontSize="11"
+                                    Margin="0,0,5,0" Click="BtnSelectAll_Click"/>
                             <Button Grid.Column="2" Content="Clear All"
                                     Style="{StaticResource BtnSecondary}"
                                     Padding="8,4" FontSize="11"
@@ -391,33 +432,35 @@
                         </Grid>
                     </Border>
 
-                    <!-- Tree -->
-                    <ScrollViewer Grid.Row="1"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Auto">
-                        <TreeView x:Name="FileTreeView">
-                            <TreeView.ItemTemplate>
-                                <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                                    <StackPanel Orientation="Horizontal" Margin="0,1">
-                                        <CheckBox Style="{StaticResource TreeCheckBox}"
-                                                  IsChecked="{Binding IsChecked, Mode=TwoWay}"
-                                                  IsThreeState="False"
-                                                  Click="TreeCheckBox_Click"/>
-                                        <TextBlock Text="{Binding Icon}"
-                                                   Foreground="#A78BFA"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,5,0"
-                                                   FontSize="12"/>
-                                        <TextBlock Text="{Binding Name}"
-                                                   Foreground="#CBD5E1"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="12.5"
-                                                   ToolTip="{Binding FullPath}"/>
-                                    </StackPanel>
-                                </HierarchicalDataTemplate>
-                            </TreeView.ItemTemplate>
-                        </TreeView>
-                    </ScrollViewer>
+                    <!--
+                        KEY FIX: NO outer ScrollViewer around TreeView.
+                        TreeView has its own built-in ScrollViewer that handles
+                        mouse-wheel correctly. Wrapping it in another
+                        ScrollViewer causes the outer one to never receive
+                        wheel events — they're consumed by the inner one.
+                    -->
+                    <TreeView Grid.Row="1"
+                              x:Name="FileTreeView">
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                <StackPanel Orientation="Horizontal" Margin="0,1">
+                                    <CheckBox Style="{StaticResource TreeCheckBox}"
+                                              IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                              IsThreeState="False"
+                                              Click="TreeCheckBox_Click"/>
+                                    <TextBlock Text="{Binding Icon}"
+                                               Foreground="#A78BFA"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,5,0" FontSize="12"/>
+                                    <TextBlock Text="{Binding Name}"
+                                               Foreground="#CBD5E1"
+                                               VerticalAlignment="Center"
+                                               FontSize="12.5"
+                                               ToolTip="{Binding FullPath}"/>
+                                </StackPanel>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
 
                     <!-- Left footer -->
                     <Border Grid.Row="2" Padding="14,7"
@@ -433,7 +476,7 @@
             <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch"
                           Background="#2D2D4E" Cursor="SizeWE"/>
 
-            <!-- RIGHT: Selected Files -->
+            <!-- RIGHT: Selected Files ──────────────────────────────── -->
             <Border Grid.Column="2" Background="#22223B" CornerRadius="10"
                     BorderBrush="#2D2D4E" BorderThickness="1">
                 <Grid>
@@ -479,10 +522,8 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Margin="0,2" Padding="10,7"
-                                            Background="#16213E"
-                                            CornerRadius="7"
-                                            BorderBrush="#2D2D4E"
-                                            BorderThickness="1">
+                                            Background="#16213E" CornerRadius="7"
+                                            BorderBrush="#2D2D4E" BorderThickness="1">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
@@ -493,12 +534,10 @@
                                                        Text="{Binding Icon}"
                                                        Foreground="#7C3AED"
                                                        VerticalAlignment="Center"
-                                                       Margin="0,0,8,0"
-                                                       FontSize="12"/>
+                                                       Margin="0,0,8,0" FontSize="12"/>
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding RelativePath}"
-                                                       Foreground="#CBD5E1"
-                                                       FontSize="11.5"
+                                                       Foreground="#CBD5E1" FontSize="11.5"
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"
                                                        ToolTip="{Binding FullPath}"/>
@@ -525,22 +564,17 @@
             </Border>
         </Grid>
 
-        <!-- ── FOOTER ──────────────────────────────────────────── -->
-        <Border Grid.Row="3" Background="#12122A" Padding="20,10"
+        <!-- ── FOOTER ───────────────────────────────────────────────── -->
+        <Border Grid.Row="4" Background="#12122A" Padding="20,10"
                 BorderBrush="#2D2D4E" BorderThickness="0,1,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-
-                <TextBlock x:Name="TxtStatus"
-                           Grid.Column="0"
-                           Text="Ready"
-                           Foreground="#475569"
-                           VerticalAlignment="Center"
-                           FontSize="12"/>
-
+                <TextBlock x:Name="TxtStatus" Grid.Column="0"
+                           Text="Ready" Foreground="#475569"
+                           VerticalAlignment="Center" FontSize="12"/>
                 <Button Grid.Column="1"
                         x:Name="BtnMerge"
                         Content="✂   Merge &amp; Save"
@@ -550,6 +584,5 @@
                         Click="BtnMerge_Click"/>
             </Grid>
         </Border>
-
     </Grid>
 </Window>
