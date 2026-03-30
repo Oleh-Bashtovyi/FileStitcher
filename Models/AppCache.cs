@@ -6,6 +6,7 @@ public class Preset
     public string Name { get; set; } = string.Empty;
     public string RootFolder { get; set; } = string.Empty;
     public List<string> SelectedFiles { get; set; } = [];
+    public List<string> Extensions { get; set; } = [".cs", ".txt", ".json"];
 }
 
 public class AppCache

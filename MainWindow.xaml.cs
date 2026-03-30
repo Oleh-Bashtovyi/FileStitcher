@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using FileStitcher.Models;
 using FileStitcher.Services;
 
@@ -13,27 +14,38 @@ namespace FileStitcher;
 
 public partial class MainWindow : Window
 {
-    // ── Supported extensions ────────────────────────────────────────
-    private static readonly HashSet<string> SupportedExt =
-        new(StringComparer.OrdinalIgnoreCase) { ".cs", ".txt", ".json" };
+    // ── Defaults ────────────────────────────────────────────────────
+    private static readonly List<string> DefaultExtensions = [".cs", ".txt", ".json"];
 
     private static readonly HashSet<string> SkipDirs =
-        new(StringComparer.OrdinalIgnoreCase) { "bin", "obj", ".git", ".vs", "node_modules", ".idea" };
+        new(StringComparer.OrdinalIgnoreCase)
+        { "bin", "obj", ".git", ".vs", "node_modules", ".idea" };
 
-    // ── State ───────────────────────────────────────────────────────
+    // ── Persistence ─────────────────────────────────────────────────
     private readonly CacheService _cacheService = new();
     private AppCache _appCache = new();
 
+    // ── Collections ─────────────────────────────────────────────────
     private readonly ObservableCollection<FileTreeItem> _tree = [];
     private readonly ObservableCollection<SelectedFileItem> _selected = [];
     private readonly HashSet<string> _selectedPaths =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // ── Session state ───────────────────────────────────────────────
     private string? _rootFolder;
     private string? _activePresetId;
     private bool _bulkOp;
 
-    // ────────────────────────────────────────────────────────────────
+    // Working extension set (rebuilt from active preset or defaults)
+    private HashSet<string> _currentExtensions =
+        new(DefaultExtensions, StringComparer.OrdinalIgnoreCase);
+
+    // ── Drag-drop state ─────────────────────────────────────────────
+    private Point _dragStartPoint;
+    private SelectedFileItem? _draggedItem;
+    private int _dropIndex = -1;
+
+    // ════════════════════════════════════════════════════════════════
     public MainWindow()
     {
         InitializeComponent();
@@ -51,31 +63,131 @@ public partial class MainWindow : Window
         _appCache = _cacheService.Load() ?? new AppCache();
         RebuildPresetChips();
 
-        // Restore the last active preset
-        var active = _appCache.Presets
-            .FirstOrDefault(p => p.Id == _appCache.ActivePresetId);
-
-        if (active != null)
-            LoadPreset(active, announce: false);
+        var active = _appCache.Presets.FirstOrDefault(p => p.Id == _appCache.ActivePresetId);
+        if (active != null) LoadPreset(active, announce: false);
+        else RebuildExtTags(); // show defaults even with no preset
     }
 
-    private void SaveCache()
-    {
-        _cacheService.Save(_appCache);
-    }
+    private void SaveCache() => _cacheService.Save(_appCache);
 
-    // Sync current selection back into the active preset and persist
     private void FlushActivePreset()
     {
         if (_activePresetId is null) return;
         var preset = _appCache.Presets.FirstOrDefault(p => p.Id == _activePresetId);
         if (preset is null) return;
+
         preset.SelectedFiles = [.. _selectedPaths];
+        preset.Extensions = [.. _currentExtensions];
         SaveCache();
     }
 
     // ════════════════════════════════════════════════════════════════
-    //  PRESET CHIPS UI
+    //  EXTENSIONS
+    // ════════════════════════════════════════════════════════════════
+
+    private void RebuildExtTags()
+    {
+        ExtTagsPanel.Children.Clear();
+        foreach (var ext in _currentExtensions.OrderBy(e => e))
+        {
+            var tag = BuildExtTag(ext);
+            ExtTagsPanel.Children.Add(tag);
+        }
+    }
+
+    private Border BuildExtTag(string ext)
+    {
+        var label = new TextBlock
+        {
+            Text = ext,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xA7, 0x8B, 0xFA)),
+            FontSize = 11,
+            FontFamily = new FontFamily("Consolas, Courier New"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var btnRemove = new Button
+        {
+            Content = "✕",
+            Width = 14,
+            Height = 14,
+            FontSize = 8,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(5, 0, 0, 0),
+            Tag = ext
+        };
+        btnRemove.Click += (_, _) =>
+        {
+            if (_currentExtensions.Count <= 1)
+            {
+                SetStatus("At least one extension must remain.");
+                return;
+            }
+            _currentExtensions.Remove(ext);
+            RebuildExtTags();
+            RebuildTree();
+            FlushActivePreset();
+        };
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(label);
+        row.Children.Add(btnRemove);
+
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x3A)),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(9, 3, 6, 3),
+            Margin = new Thickness(0, 0, 5, 0),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3D, 0x3D, 0x6E)),
+            BorderThickness = new Thickness(1),
+            Child = row,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+    }
+
+    private void TxtNewExt_GotFocus(object sender, RoutedEventArgs e)
+    {
+        if (TxtNewExt.Text == ".ext") TxtNewExt.SelectAll();
+    }
+
+    private void TxtNewExt_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) AddExtensionFromInput();
+    }
+
+    private void BtnAddExt_Click(object sender, RoutedEventArgs e) =>
+        AddExtensionFromInput();
+
+    private void AddExtensionFromInput()
+    {
+        var raw = TxtNewExt.Text.Trim();
+        if (string.IsNullOrWhiteSpace(raw) || raw == ".ext") return;
+
+        var ext = raw.StartsWith('.') ? raw : "." + raw;
+        if (_currentExtensions.Contains(ext)) { SetStatus($"{ext} is already in the list."); return; }
+
+        _currentExtensions.Add(ext);
+        TxtNewExt.Text = ".ext";
+        RebuildExtTags();
+        RebuildTree();
+        FlushActivePreset();
+    }
+
+    private void BtnResetExt_Click(object sender, RoutedEventArgs e)
+    {
+        _currentExtensions = new HashSet<string>(DefaultExtensions, StringComparer.OrdinalIgnoreCase);
+        RebuildExtTags();
+        RebuildTree();
+        FlushActivePreset();
+        SetStatus("Extensions reset to defaults.");
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  PRESET CHIPS
     // ════════════════════════════════════════════════════════════════
 
     private void RebuildPresetChips()
@@ -84,70 +196,55 @@ public partial class MainWindow : Window
 
         if (_appCache.Presets.Count == 0)
         {
-            var empty = new TextBlock
+            PresetChipsPanel.Children.Add(new TextBlock
             {
-                Text = "No presets yet — browse a folder and save one",
+                Text = "No presets yet",
                 Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69)),
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center
-            };
-            PresetChipsPanel.Children.Add(empty);
+            });
             return;
         }
 
         foreach (var preset in _appCache.Presets)
-        {
-            bool isActive = preset.Id == _activePresetId;
-            var chip = BuildChip(preset, isActive);
-            PresetChipsPanel.Children.Add(chip);
-        }
+            PresetChipsPanel.Children.Add(BuildChip(preset));
     }
 
-    private Border BuildChip(Preset preset, bool isActive)
+    private Border BuildChip(Preset preset)
     {
-        // Chip text
-        var label = new TextBlock
+        bool active = preset.Id == _activePresetId;
+        var textFg = active ? Colors.White : Color.FromRgb(0xCB, 0xD5, 0xE1);
+        var bg = active ? Color.FromRgb(0x7C, 0x3A, 0xED)
+                             : Color.FromRgb(0x2D, 0x2D, 0x4E);
+
+        var nameLabel = new TextBlock
         {
             Text = preset.Name,
-            Foreground = isActive
-                ? new SolidColorBrush(Colors.White)
-                : new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1)),
+            Foreground = new SolidColorBrush(textFg),
             FontSize = 12,
-            FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
+            FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
             VerticalAlignment = VerticalAlignment.Center,
-            MaxWidth = 160,
+            MaxWidth = 150,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            ToolTip = $"{preset.RootFolder}\n{preset.SelectedFiles.Count} file(s)"
+            ToolTip = $"{preset.RootFolder}\n{preset.SelectedFiles.Count} file(s) · {string.Join(", ", preset.Extensions)}"
         };
 
-        // Delete button
-        var btnDelete = new Button
-        {
-            Content = "✕",
-            Width = 16,
-            Height = 16,
-            FontSize = 9,
-            Foreground = isActive
-                ? new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF))
-                : new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(6, 0, 0, 0),
-            Tag = preset.Id,
-            ToolTip = "Delete preset"
-        };
-        btnDelete.Click += BtnDeletePreset_Click;
+        // ✏ edit button
+        var btnEdit = ChipBtn("✏", preset.Id, BtnEditPreset_Click, active);
+        btnEdit.ToolTip = "Rename or change root folder";
+
+        // ✕ delete button
+        var btnDel = ChipBtn("✕", preset.Id, BtnDeletePreset_Click, active);
+        btnDel.ToolTip = "Delete preset";
 
         var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(label);
-        row.Children.Add(btnDelete);
+        row.Children.Add(nameLabel);
+        row.Children.Add(btnEdit);
+        row.Children.Add(btnDel);
 
         var chip = new Border
         {
-            Background = isActive
-                ? new SolidColorBrush(Color.FromRgb(0x7C, 0x3A, 0xED))
-                : new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x4E)),
+            Background = new SolidColorBrush(bg),
             CornerRadius = new CornerRadius(20),
             Padding = new Thickness(12, 5, 8, 5),
             Margin = new Thickness(0, 0, 6, 0),
@@ -160,6 +257,29 @@ public partial class MainWindow : Window
         return chip;
     }
 
+    private static Button ChipBtn(string icon, string tag,
+                                   RoutedEventHandler handler, bool active)
+    {
+        var fg = active
+            ? Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF)
+            : Color.FromRgb(0x64, 0x74, 0x8B);
+        var btn = new Button
+        {
+            Content = icon,
+            Width = 16,
+            Height = 16,
+            FontSize = 9,
+            Foreground = new SolidColorBrush(fg),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(5, 0, 0, 0),
+            Tag = tag
+        };
+        btn.Click += handler;
+        return btn;
+    }
+
     private void Chip_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border { Tag: string id }) return;
@@ -168,33 +288,58 @@ public partial class MainWindow : Window
         LoadPreset(preset, announce: true);
     }
 
-    private void BtnDeletePreset_Click(object sender, RoutedEventArgs e)
+    private void BtnEditPreset_Click(object sender, RoutedEventArgs e)
     {
-        e.Handled = true; // don't bubble to chip click
+        e.Handled = true;
         if (sender is not Button { Tag: string id }) return;
-
         var preset = _appCache.Presets.FirstOrDefault(p => p.Id == id);
         if (preset is null) return;
 
-        var result = MessageBox.Show(
-            $"Delete preset \"{preset.Name}\"?",
-            "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (result != MessageBoxResult.Yes) return;
+        var dlg = new EditPresetDialog(preset.Name, preset.RootFolder) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        bool rootChanged = !preset.RootFolder.Equals(dlg.RootFolder, StringComparison.OrdinalIgnoreCase);
+
+        preset.Name = dlg.PresetName;
+        preset.RootFolder = dlg.RootFolder;
+        SaveCache();
+        RebuildPresetChips();
+
+        // If this is the active preset and the root changed, reload
+        if (_activePresetId == id && rootChanged)
+        {
+            _rootFolder = preset.RootFolder;
+            RefreshRootDisplay();
+            RebuildTree();
+            SetStatus($"Preset root changed — tree reloaded.");
+        }
+        else
+        {
+            SetStatus($"Preset renamed to \"{ preset.Name}\".");
+        }
+    }
+
+    private void BtnDeletePreset_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Button { Tag: string id }) return;
+        var preset = _appCache.Presets.FirstOrDefault(p => p.Id == id);
+        if (preset is null) return;
+
+        if (MessageBox.Show($"Delete preset \"{preset.Name}\"?", "Confirm",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
 
         _appCache.Presets.Remove(preset);
 
         if (_activePresetId == id)
         {
-            _activePresetId = null;
-            _appCache.ActivePresetId = null;
-
-            // Clear the workspace
+            _activePresetId = null; _appCache.ActivePresetId = null;
             _bulkOp = true;
             _tree.Clear(); _selected.Clear(); _selectedPaths.Clear();
             _rootFolder = null;
             _bulkOp = false;
-            RefreshRootDisplay();
-            UpdateFooter();
+            RefreshRootDisplay(); UpdateFooter();
         }
 
         SaveCache();
@@ -208,16 +353,14 @@ public partial class MainWindow : Window
 
     private void LoadPreset(Preset preset, bool announce)
     {
-        // If root no longer exists — remove preset, ask user
         if (!Directory.Exists(preset.RootFolder))
         {
             MessageBox.Show(
-                $"The root folder for preset \"{preset.Name}\" no longer exists:\n{preset.RootFolder}\n\nThe preset will be removed.",
+                $"Root folder for preset \"{preset.Name}\" no longer exists:\n{preset.RootFolder}\n\nThe preset will be removed.",
                 "Folder Missing", MessageBoxButton.OK, MessageBoxImage.Warning);
             _appCache.Presets.Remove(preset);
             if (_activePresetId == preset.Id) _activePresetId = null;
-            SaveCache();
-            RebuildPresetChips();
+            SaveCache(); RebuildPresetChips();
             return;
         }
 
@@ -225,14 +368,18 @@ public partial class MainWindow : Window
         _appCache.ActivePresetId = preset.Id;
         _rootFolder = preset.RootFolder;
 
-        // Clear current state
+        // Restore extensions (handle old cache without Extensions field)
+        _currentExtensions = preset.Extensions.Count > 0
+            ? new HashSet<string>(preset.Extensions, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(DefaultExtensions, StringComparer.OrdinalIgnoreCase);
+        RebuildExtTags();
+
         _bulkOp = true;
         _tree.Clear(); _selected.Clear(); _selectedPaths.Clear();
 
         RefreshRootDisplay();
         BuildTree();
 
-        // Restore files, skip missing
         var missing = new List<string>();
         foreach (var path in preset.SelectedFiles)
         {
@@ -240,72 +387,50 @@ public partial class MainWindow : Window
             else missing.Add(path);
         }
 
-        // Prune missing from preset
-        if (missing.Count > 0)
-        {
-            missing.ForEach(p => preset.SelectedFiles.Remove(p));
-            SaveCache();
-        }
+        if (missing.Count > 0) { missing.ForEach(p => preset.SelectedFiles.Remove(p)); SaveCache(); }
 
         _bulkOp = false;
-        UpdateFooter();
-        RebuildPresetChips();
+        UpdateFooter(); RebuildPresetChips();
         BtnSavePreset.IsEnabled = true;
 
-        if (announce) SetStatus($"Loaded preset \"{preset.Name}\" · {(missing.Count > 0 ? $"{missing.Count} missing file(s) removed" : "OK")}");
+        if (announce)
+            SetStatus($"Loaded \"{preset.Name}\"" +
+                      (missing.Count > 0 ? $" — {missing.Count} missing file(s) removed" : ""));
     }
 
     private void BtnSavePreset_Click(object sender, RoutedEventArgs e)
     {
         if (_rootFolder is null) return;
 
-        // Save into existing active preset
-        if (_activePresetId is not null)
-        {
-            FlushActivePreset();
-            SetStatus("Preset saved.");
-            RebuildPresetChips();
-            return;
-        }
-
-        // No active preset — treat as new
+        if (_activePresetId is not null) { FlushActivePreset(); SetStatus("Preset saved."); RebuildPresetChips(); return; }
         SaveNewPreset();
     }
 
     private void BtnNewPreset_Click(object sender, RoutedEventArgs e)
     {
-        // Browse new folder first if none loaded
-        if (_rootFolder is null)
-        {
-            BtnBrowse_Click(sender, e);
-            if (_rootFolder is null) return;
-        }
+        if (_rootFolder is null) { BtnBrowse_Click(sender, e); if (_rootFolder is null) return; }
         SaveNewPreset();
     }
 
     private void SaveNewPreset()
     {
         if (_rootFolder is null) return;
-
         var defaultName = new DirectoryInfo(_rootFolder).Name;
-        var dlg = new InputDialog("New Preset", "Enter a name for this preset:", defaultName)
-        {
-            Owner = this
-        };
+        var dlg = new InputDialog("New Preset", "Enter a name for this preset:", defaultName) { Owner = this };
         if (dlg.ShowDialog() != true) return;
 
         var preset = new Preset
         {
             Name = dlg.Result,
             RootFolder = _rootFolder,
-            SelectedFiles = [.. _selectedPaths]
+            SelectedFiles = [.. _selectedPaths],
+            Extensions = [.. _currentExtensions]
         };
 
         _appCache.Presets.Add(preset);
         _activePresetId = preset.Id;
         _appCache.ActivePresetId = preset.Id;
-        SaveCache();
-        RebuildPresetChips();
+        SaveCache(); RebuildPresetChips();
         BtnSavePreset.IsEnabled = true;
         SetStatus($"Preset \"{preset.Name}\" created.");
     }
@@ -313,6 +438,20 @@ public partial class MainWindow : Window
     // ════════════════════════════════════════════════════════════════
     //  TREE
     // ════════════════════════════════════════════════════════════════
+
+    private void RebuildTree()
+    {
+        if (_rootFolder is null) return;
+        var savedPaths = _selectedPaths.ToList();
+
+        _bulkOp = true;
+        _tree.Clear(); _selected.Clear(); _selectedPaths.Clear();
+        BuildTree();
+        foreach (var path in savedPaths.Where(File.Exists)) ApplyFileCheck(path, check: true);
+        _bulkOp = false;
+
+        UpdateFooter();
+    }
 
     private void BuildTree()
     {
@@ -328,7 +467,7 @@ public partial class MainWindow : Window
         int total = _tree.Sum(CountFiles);
         TxtTreeStatus.Text = total > 0
             ? $"{total} supported file(s) in scope"
-            : "No .cs / .json / .txt files found";
+            : $"No {string.Join("/", _currentExtensions)} files found";
         BtnRefresh.IsEnabled = true;
     }
 
@@ -342,18 +481,18 @@ public partial class MainWindow : Window
             Parent = parent
         };
 
-        IEnumerable<DirectoryInfo> subDirs;
-        try { subDirs = dir.GetDirectories().Where(d => !SkipDirs.Contains(d.Name)).OrderBy(d => d.Name); }
-        catch { subDirs = []; }
+        IEnumerable<DirectoryInfo> subs;
+        try { subs = dir.GetDirectories().Where(d => !SkipDirs.Contains(d.Name)).OrderBy(d => d.Name); }
+        catch { subs = []; }
 
-        foreach (var sub in subDirs)
+        foreach (var sub in subs)
         {
             var child = BuildNode(sub, node);
             if (child != null) node.Children.Add(child);
         }
 
         IEnumerable<FileInfo> files;
-        try { files = dir.GetFiles().Where(f => SupportedExt.Contains(f.Extension)).OrderBy(f => f.Name); }
+        try { files = dir.GetFiles().Where(f => _currentExtensions.Contains(f.Extension)).OrderBy(f => f.Name); }
         catch { files = []; }
 
         foreach (var f in files)
@@ -384,7 +523,7 @@ public partial class MainWindow : Window
         if (item.IsChecked == true)
         {
             if (_selectedPaths.Add(item.FullPath))
-                InsertSorted(MakeSelectedItem(item.FullPath));
+                _selected.Add(MakeSelectedItem(item.FullPath));  // ← append to end
         }
         else
         {
@@ -399,7 +538,111 @@ public partial class MainWindow : Window
         if (!_bulkOp) { UpdateFooter(); FlushActivePreset(); }
     }
 
-    private void TreeCheckBox_Click(object sender, RoutedEventArgs e) { /* cascade runs via TwoWay binding */ }
+    private void TreeCheckBox_Click(object sender, RoutedEventArgs e) { }
+
+    // ════════════════════════════════════════════════════════════════
+    //  DRAG-AND-DROP (right panel reorder)
+    // ════════════════════════════════════════════════════════════════
+
+    private void DragHandle_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStartPoint = e.GetPosition(null);
+    }
+
+    private void DragHandle_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        if (sender is not FrameworkElement el) return;
+
+        var pos = e.GetPosition(null);
+        var delta = pos - _dragStartPoint;
+        if (Math.Abs(delta.X) < 4 && Math.Abs(delta.Y) < 4) return;
+
+        if (el.DataContext is not SelectedFileItem item) return;
+        _draggedItem = item;
+
+        DragDrop.DoDragDrop(el, item, DragDropEffects.Move);
+
+        // Cleanup after drop
+        _draggedItem = null;
+        _dropIndex = -1;
+        DropLine.Visibility = Visibility.Collapsed;
+    }
+
+    private void SelectedList_DragOver(object sender, DragEventArgs e)
+    {
+        if (_draggedItem is null) { e.Effects = DragDropEffects.None; return; }
+        e.Effects = DragDropEffects.Move;
+
+        var posInGrid = e.GetPosition(RightContentGrid);
+        _dropIndex = CalcDropIndex(posInGrid, out double lineY);
+
+        // Show and position the insertion line
+        DropLine.Visibility = Visibility.Visible;
+        DropLine.Width = Math.Max(0, RightContentGrid.ActualWidth - 20);
+        System.Windows.Controls.Canvas.SetTop(DropLine, lineY - 1);
+
+        e.Handled = true;
+    }
+
+    private void SelectedList_Drop(object sender, DragEventArgs e)
+    {
+        if (_draggedItem is null) return;
+
+        var posInGrid = e.GetPosition(RightContentGrid);
+        int targetIdx = CalcDropIndex(posInGrid, out _);
+
+        int fromIdx = _selected.IndexOf(_draggedItem);
+        if (fromIdx < 0 || fromIdx == targetIdx) return;
+
+        // When moving down, the effective target shifts by -1 after removal
+        int insertAt = targetIdx > fromIdx ? targetIdx - 1 : targetIdx;
+        insertAt = Math.Clamp(insertAt, 0, _selected.Count - 1);
+
+        _selected.Move(fromIdx, insertAt);
+        FlushActivePreset();
+
+        DropLine.Visibility = Visibility.Collapsed;
+        e.Handled = true;
+    }
+
+    private void SelectedList_DragLeave(object sender, DragEventArgs e)
+    {
+        // Only hide if actually leaving the ScrollViewer bounds
+        var pos = e.GetPosition(SelectedScrollViewer);
+        if (pos.X < 0 || pos.Y < 0 ||
+            pos.X > SelectedScrollViewer.ActualWidth ||
+            pos.Y > SelectedScrollViewer.ActualHeight)
+        {
+            DropLine.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>
+    /// Returns the insert-before index for the given mouse position,
+    /// and the Y coordinate (relative to RightContentGrid) to draw the line.
+    /// </summary>
+    private int CalcDropIndex(Point posInGrid, out double lineY)
+    {
+        lineY = 0;
+        for (int i = 0; i < _selected.Count; i++)
+        {
+            var container = SelectedFilesList.ItemContainerGenerator
+                                             .ContainerFromIndex(i) as FrameworkElement;
+            if (container is null) continue;
+
+            var topLeft = container.TranslatePoint(new Point(0, 0), RightContentGrid);
+            var midY = topLeft.Y + container.ActualHeight / 2;
+
+            if (posInGrid.Y < midY)
+            {
+                lineY = topLeft.Y;
+                return i;
+            }
+            lineY = topLeft.Y + container.ActualHeight + 4;
+        }
+        return _selected.Count;
+    }
 
     // ════════════════════════════════════════════════════════════════
     //  BUTTON HANDLERS
@@ -415,12 +658,12 @@ public partial class MainWindow : Window
 
         _bulkOp = true;
         _tree.Clear(); _selected.Clear(); _selectedPaths.Clear();
-        _activePresetId = null;
+        _activePresetId = null; _appCache.ActivePresetId = null;
         _bulkOp = false;
 
         BuildTree();
         UpdateFooter();
-        RebuildPresetChips(); // deselect active chip
+        RebuildPresetChips();
         BtnSavePreset.IsEnabled = true;
     }
 
@@ -428,26 +671,16 @@ public partial class MainWindow : Window
     {
         if (_rootFolder is null || !Directory.Exists(_rootFolder))
         {
-            SetStatus("⚠ Root folder no longer exists. Please select a new one.");
-            _rootFolder = null;
-            RefreshRootDisplay();
+            MessageBox.Show("Root folder no longer exists. Please select a new one.",
+                "Missing Folder", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _rootFolder = null; RefreshRootDisplay();
             _bulkOp = true;
             _tree.Clear(); _selected.Clear(); _selectedPaths.Clear();
             _bulkOp = false;
             UpdateFooter();
             return;
         }
-
-        var saved = _selectedPaths.ToList();
-
-        _bulkOp = true;
-        _tree.Clear(); _selected.Clear(); _selectedPaths.Clear();
-        BuildTree();
-        foreach (var path in saved.Where(File.Exists)) ApplyFileCheck(path, check: true);
-        _bulkOp = false;
-
-        UpdateFooter();
-        FlushActivePreset();
+        RebuildTree();
         SetStatus("Tree refreshed.");
     }
 
@@ -476,10 +709,6 @@ public partial class MainWindow : Window
             FindAndSetCheck(_tree, path, check: false);
     }
 
-    // ════════════════════════════════════════════════════════════════
-    //  MERGE
-    // ════════════════════════════════════════════════════════════════
-
     private async void BtnMerge_Click(object sender, RoutedEventArgs e)
     {
         if (_selected.Count == 0) return;
@@ -502,42 +731,27 @@ public partial class MainWindow : Window
         try
         {
             await Task.Run(() => WriteOutput(filesToMerge, outputPath));
+
             SetStatus($"✓  Saved → {outputPath}");
 
-            var open = MessageBox.Show(
-                $"Merged {filesToMerge.Count} file(s) successfully!\n\nOpen the output file?",
-                "Done", MessageBoxButton.YesNo, MessageBoxImage.Information);
-
-            if (open == MessageBoxResult.Yes)
+            if (MessageBox.Show($"Merged {filesToMerge.Count} file(s).\n\nOpen the output file?",
+                    "Done", MessageBoxButton.YesNo, MessageBoxImage.Information)
+                == MessageBoxResult.Yes)
                 System.Diagnostics.Process.Start(
                     new System.Diagnostics.ProcessStartInfo(outputPath) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            SetStatus($"❌ Error: {ex.Message}");
-            MessageBox.Show($"Failed to merge files:\n{ex.Message}",
-                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus($"❌ {ex.Message}");
+            MessageBox.Show($"Failed to merge:\n{ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally
-        {
-            BtnMerge.IsEnabled = _selected.Count > 0;
-        }
+        finally { BtnMerge.IsEnabled = _selected.Count > 0; }
     }
 
     private static void WriteOutput(IList<SelectedFileItem> files, string outputPath)
     {
-        var sb = new StringBuilder();
-        foreach (var f in files)
-        {
-            if (!File.Exists(f.FullPath)) continue;
-            var rel = f.RelativePath.Replace('\\', '/');
-            sb.AppendLine();
-            sb.AppendLine("//========================");
-            sb.Append(rel).AppendLine(":");
-            sb.AppendLine("//========================");
-            sb.AppendLine(File.ReadAllText(f.FullPath, Encoding.UTF8));
-        }
-        File.WriteAllText(outputPath, sb.ToString().TrimStart('\r', '\n'), Encoding.UTF8);
+        File.WriteAllText(outputPath, BuildMergedString(files), Encoding.UTF8);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -576,40 +790,26 @@ public partial class MainWindow : Window
         }
     }
 
-    private void InsertSorted(SelectedFileItem si)
+    private SelectedFileItem MakeSelectedItem(string fullPath) => new()
     {
-        int idx = _selected.ToList()
-            .FindIndex(x => string.Compare(x.RelativePath, si.RelativePath,
-                StringComparison.OrdinalIgnoreCase) > 0);
-        if (idx < 0) _selected.Add(si);
-        else _selected.Insert(idx, si);
-    }
-
-    private SelectedFileItem MakeSelectedItem(string fullPath) =>
-        new()
-        {
-            FullPath = fullPath,
-            RelativePath = Path.GetRelativePath(_rootFolder!, fullPath),
-            Icon = Path.GetExtension(fullPath).ToLowerInvariant() switch
-            { ".cs" => "⚙", ".json" => "{}", _ => "≡" }
-        };
+        FullPath = fullPath,
+        RelativePath = System.IO.Path.GetRelativePath(_rootFolder!, fullPath),
+        Icon = System.IO.Path.GetExtension(fullPath).ToLowerInvariant() switch
+        { ".cs" => "⚙", ".json" => "{}", ".md" => "#", _ => "≡" }
+    };
 
     private void UpdateFooter()
     {
         int count = _selected.Count;
         TxtSelectedCount.Text = count.ToString();
         BtnMerge.IsEnabled = count > 0;
+        BtnCopy.IsEnabled = count > 0;
 
-        if (count == 0)
-        {
-            TxtSizeInfo.Text = "No files selected";
-        }
-        else
-        {
-            long bytes = _selectedPaths.Where(File.Exists)
-                .Sum(p => { try { return new FileInfo(p).Length; } catch { return 0L; } });
-            TxtSizeInfo.Text = $"{count} file(s)   ·   {FormatBytes(bytes)} total";
-        }
+        if (count == 0) { TxtSizeInfo.Text = "No files selected"; return; }
+
+        long bytes = _selectedPaths.Where(File.Exists)
+            .Sum(p => { try { return new FileInfo(p).Length; } catch { return 0L; } });
+        TxtSizeInfo.Text = $"{count} file(s)   ·   {FormatBytes(bytes)} total";
     }
 
     private void SetStatus(string msg) =>
@@ -624,4 +824,42 @@ public partial class MainWindow : Window
         < 1_048_576 => $"{b / 1024.0:F1} KB",
         _ => $"{b / 1_048_576.0:F1} MB"
     };
+
+    private async void BtnCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected.Count == 0) return;
+
+        var filesToCopy = _selected.ToList();
+        BtnCopy.IsEnabled = false;
+        SetStatus($"Copying {filesToCopy.Count} file(s)…");
+
+        try
+        {
+            var text = await Task.Run(() => BuildMergedString(filesToCopy));
+            Clipboard.SetText(text);
+            SetStatus($"✓  Copied {filesToCopy.Count} file(s) to clipboard " +
+                      $"({FormatBytes(Encoding.UTF8.GetByteCount(text))})");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"❌ {ex.Message}");
+        }
+        finally { BtnCopy.IsEnabled = _selected.Count > 0; }
+    }
+
+    private static string BuildMergedString(IList<SelectedFileItem> files)
+    {
+        var sb = new StringBuilder();
+        foreach (var f in files)
+        {
+            if (!File.Exists(f.FullPath)) continue;
+            var rel = f.RelativePath.Replace('\\', '/');
+            sb.AppendLine();
+            sb.AppendLine("//========================");
+            sb.Append(rel).AppendLine(":");
+            sb.AppendLine("//========================");
+            sb.AppendLine(File.ReadAllText(f.FullPath, Encoding.UTF8));
+        }
+        return sb.ToString().TrimStart('\r', '\n');
+    }
 }
