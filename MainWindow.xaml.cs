@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using FileStitcher.Models;
 using FileStitcher.Services;
+using Path = System.IO.Path;
 
 namespace FileStitcher;
 
@@ -45,6 +46,12 @@ public partial class MainWindow : Window
     private SelectedFileItem? _draggedItem;
     private int _dropIndex = -1;
 
+    // ── Separator state ─────────────────────────────────────────────────
+    private SeparatorType _separatorType = SeparatorType.Header;
+    private int _emptyLineCount = 1;
+    private string _customSeparatorTemplate =
+        "//========================\n{{RelativePath}}:\n//========================";
+
     // ════════════════════════════════════════════════════════════════
     public MainWindow()
     {
@@ -65,7 +72,7 @@ public partial class MainWindow : Window
 
         var active = _appCache.Presets.FirstOrDefault(p => p.Id == _appCache.ActivePresetId);
         if (active != null) LoadPreset(active, announce: false);
-        else RebuildExtTags(); // show defaults even with no preset
+        else { RebuildExtTags(); UpdateSeparatorLabel(); }
     }
 
     private void SaveCache() => _cacheService.Save(_appCache);
@@ -78,6 +85,9 @@ public partial class MainWindow : Window
 
         preset.SelectedFiles = [.. _selectedPaths];
         preset.Extensions = [.. _currentExtensions];
+        preset.SeparatorType = _separatorType;
+        preset.EmptyLineCount = _emptyLineCount;
+        preset.CustomSeparatorTemplate = _customSeparatorTemplate;
         SaveCache();
     }
 
@@ -374,6 +384,11 @@ public partial class MainWindow : Window
             : new HashSet<string>(DefaultExtensions, StringComparer.OrdinalIgnoreCase);
         RebuildExtTags();
 
+        _separatorType = preset.SeparatorType;
+        _emptyLineCount = preset.EmptyLineCount;
+        _customSeparatorTemplate = preset.CustomSeparatorTemplate;
+        UpdateSeparatorLabel();
+
         _bulkOp = true;
         _tree.Clear(); _selected.Clear(); _selectedPaths.Clear();
 
@@ -424,7 +439,10 @@ public partial class MainWindow : Window
             Name = dlg.Result,
             RootFolder = _rootFolder,
             SelectedFiles = [.. _selectedPaths],
-            Extensions = [.. _currentExtensions]
+            Extensions = [.. _currentExtensions],
+            SeparatorType = _separatorType,          // ← нове
+            EmptyLineCount = _emptyLineCount,          // ← нове
+            CustomSeparatorTemplate = _customSeparatorTemplate // ← нове
         };
 
         _appCache.Presets.Add(preset);
@@ -724,14 +742,16 @@ public partial class MainWindow : Window
 
         var outputPath = dlg.FileName;
         var filesToMerge = _selected.ToList();
+        var sepType = _separatorType;        // ← захоплюємо локально
+        var emptyCount = _emptyLineCount;
+        var customTemplate = _customSeparatorTemplate;
 
         BtnMerge.IsEnabled = false;
         SetStatus($"Merging {filesToMerge.Count} file(s)…");
 
         try
         {
-            await Task.Run(() => WriteOutput(filesToMerge, outputPath));
-
+            await Task.Run(() => WriteOutput(filesToMerge, outputPath, sepType, emptyCount, customTemplate));
             SetStatus($"✓  Saved → {outputPath}");
 
             if (MessageBox.Show($"Merged {filesToMerge.Count} file(s).\n\nOpen the output file?",
@@ -749,9 +769,75 @@ public partial class MainWindow : Window
         finally { BtnMerge.IsEnabled = _selected.Count > 0; }
     }
 
-    private static void WriteOutput(IList<SelectedFileItem> files, string outputPath)
+    private static void WriteOutput(IList<SelectedFileItem> files, string outputPath,
+        SeparatorType sepType, int emptyLineCount, string customTemplate)
     {
-        File.WriteAllText(outputPath, BuildMergedString(files), Encoding.UTF8);
+        File.WriteAllText(outputPath,
+            BuildMergedString(files, sepType, emptyLineCount, customTemplate),
+            Encoding.UTF8);
+    }
+
+    private static string BuildMergedString(IList<SelectedFileItem> files,
+        SeparatorType sepType, int emptyLineCount, string customTemplate)
+    {
+        var sb = new StringBuilder();
+        bool isFirst = true;
+        int fileNum = 0;
+
+        foreach (var f in files)
+        {
+            if (!File.Exists(f.FullPath)) continue;
+            fileNum++;
+
+            var content = File.ReadAllText(f.FullPath, Encoding.UTF8);
+            if (content.Length > 0 && !content.EndsWith('\n'))
+                content += '\n';
+
+            switch (sepType)
+            {
+                case SeparatorType.None:
+                    sb.Append(content);
+                    break;
+
+                case SeparatorType.EmptyLine:
+                    if (!isFirst) sb.Append(new string('\n', emptyLineCount));
+                    sb.Append(content);
+                    break;
+
+                case SeparatorType.Header:
+                    {
+                        var rel = f.RelativePath.Replace('\\', '/');
+                        if (!isFirst) sb.AppendLine(); // blank line before next header
+                        sb.AppendLine("//========================");
+                        sb.Append(rel).AppendLine(":");
+                        sb.AppendLine("//========================");
+                        sb.Append(content);
+                        break;
+                    }
+
+                case SeparatorType.Custom:
+                    {
+                        if (!isFirst) sb.AppendLine();
+                        if (!string.IsNullOrWhiteSpace(customTemplate))
+                        {
+                            var sep = customTemplate
+                                .Replace("{{FileNumber}}", fileNum.ToString())
+                                .Replace("{{FileName}}", Path.GetFileName(f.FullPath))
+                                .Replace("{{RelativePath}}", f.RelativePath.Replace('\\', '/'))
+                                .Replace("{{FullPath}}", f.FullPath);
+
+                            sb.Append(sep);
+                            if (!sep.EndsWith('\n')) sb.AppendLine();
+                        }
+                        sb.Append(content);
+                        break;
+                    }
+            }
+
+            isFirst = false;
+        }
+
+        return sb.ToString();
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -830,20 +916,21 @@ public partial class MainWindow : Window
         if (_selected.Count == 0) return;
 
         var filesToCopy = _selected.ToList();
+        var sepType = _separatorType;
+        var emptyCount = _emptyLineCount;
+        var customTemplate = _customSeparatorTemplate;
+
         BtnCopy.IsEnabled = false;
         SetStatus($"Copying {filesToCopy.Count} file(s)…");
 
         try
         {
-            var text = await Task.Run(() => BuildMergedString(filesToCopy));
+            var text = await Task.Run(() => BuildMergedString(filesToCopy, sepType, emptyCount, customTemplate));
             Clipboard.SetText(text);
             SetStatus($"✓  Copied {filesToCopy.Count} file(s) to clipboard " +
                       $"({FormatBytes(Encoding.UTF8.GetByteCount(text))})");
         }
-        catch (Exception ex)
-        {
-            SetStatus($"❌ {ex.Message}");
-        }
+        catch (Exception ex) { SetStatus($"❌ {ex.Message}"); }
         finally { BtnCopy.IsEnabled = _selected.Count > 0; }
     }
 
@@ -862,4 +949,32 @@ public partial class MainWindow : Window
         }
         return sb.ToString().TrimStart('\r', '\n');
     }
+
+    private void BtnSeparator_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new SeparatorDialog(
+            _separatorType, _emptyLineCount, _customSeparatorTemplate)
+        { Owner = this };
+
+        if (dlg.ShowDialog() != true) return;
+
+        _separatorType = dlg.SelectedType;
+        _emptyLineCount = dlg.EmptyLineCount;
+        _customSeparatorTemplate = dlg.CustomTemplate;
+
+        UpdateSeparatorLabel();
+        FlushActivePreset();
+        SetStatus($"Separator → {SeparatorLabel(_separatorType, _emptyLineCount)}");
+    }
+
+    private void UpdateSeparatorLabel() =>
+        TxtSeparatorInfo.Text = SeparatorLabel(_separatorType, _emptyLineCount);
+
+    private static string SeparatorLabel(SeparatorType type, int lineCount) => type switch
+    {
+        SeparatorType.None => "None",
+        SeparatorType.EmptyLine => $"Empty lines ×{lineCount}",
+        SeparatorType.Custom => "Custom",
+        _ => "Header Block"
+    };
 }

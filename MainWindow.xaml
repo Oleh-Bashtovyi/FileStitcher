@@ -591,17 +591,38 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
+                    <!-- 0: status            -->
                     <ColumnDefinition Width="Auto"/>
+                    <!-- 1: separator control -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- ← НОВА колонка -->
+                    <!-- 2: copy              -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- 3: merge             -->
                 </Grid.ColumnDefinitions>
 
                 <TextBlock x:Name="TxtStatus" Grid.Column="0"
                    Text="Ready" Foreground="#475569"
                    VerticalAlignment="Center" FontSize="12"/>
 
-                <!-- ↓ НОВА КНОПКА -->
-                <Button Grid.Column="1"
+                <!-- Separator selector -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                    VerticalAlignment="Center" Margin="0,0,10,0">
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center"
+                        Margin="0,0,8,0">
+                        <TextBlock Text="SEPARATOR" FontSize="9" FontWeight="Bold"
+                           Foreground="#3D3D6E"/>
+                        <TextBlock x:Name="TxtSeparatorInfo" Text="Header Block"
+                           FontSize="11" Foreground="#A78BFA"/>
+                    </StackPanel>
+                    <Button x:Name="BtnSeparator"
+                    Content="⚙"
+                    Style="{StaticResource BtnSecondary}"
+                    Padding="10,7" FontSize="13"
+                    ToolTip="Configure file separator"
+                    Click="BtnSeparator_Click"/>
+                </StackPanel>
+
+                <Button Grid.Column="2"
                 x:Name="BtnCopy"
                 Content="📋  Copy to Clipboard"
                 Style="{StaticResource BtnSecondary}"
@@ -610,7 +631,7 @@
                 IsEnabled="False"
                 Click="BtnCopy_Click"/>
 
-                <Button Grid.Column="2"
+                <Button Grid.Column="3"
                 x:Name="BtnMerge"
                 Content="✂   Merge &amp; Save"
                 Style="{StaticResource BtnPrimary}"
@@ -619,6 +640,5 @@
                 Click="BtnMerge_Click"/>
             </Grid>
         </Border>
-
     </Grid>
 </Window>
